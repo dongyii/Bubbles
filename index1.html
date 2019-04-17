@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <!--<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>-->
+    <script type="text/javascript" src="caster.js"></script>
+    <script type="text/javascript" src="bubble.js"></script>
+</head>
+<body>
+   <canvas id="canvas" width="1024" height="550" style="border:1px solid #aaa;display :block;margin:50px auto">
+       当前浏览器好像不支持canvas哦，更换浏览器后再试试吧。
+   </canvas>
+
+<script>
+    //一些全局变量
+    var CanvasWidth=1000;//画布宽度
+    var CanvasHeight=550;//画布长度
+
+
+
+    var LIneWidth=4;//发射器虚线的间隔长短
+    var TurnAngle=1;//按一次 ← 、 → 旋转多少角度
+    var MaxTurnAngle=355;//最大转角，发射器向右可以转到的最大角度
+    var MinTurnAngle=185;//最小转角，发射器向左可以转到的最小角度
+
+    var CasterWidth=12;
+    var CasterWidthMax=15;
+
+    var caster=new BubbleCaster();//创建一个发射器对象
+    caster.position.x=512;//发射器位置坐标
+    caster.position.y=525;//发射器位置坐标
+    caster.size=30;//控制发射器的大小  主要是控制外圆的大小 以及那个三角形的大小 额 这不是废话吗
+    caster.width=CasterWidth;//发射器的厚度 主要是外面那个圈圈的宽度 中间那个圆半径固定是外面那个圆半径的一半
+    caster.angle=270;//发射器的角度
+
+    var deadLineY=450;//终止线的位置
+
+    var Bubbles=[];
+    var BubbleR=20;//泡泡的半径
+
+//    var color=["#ee4340","#eea01d","#e9ee3d","#4eee14","#29eee8","#0b50ee","#be32ee"];
+    var color=[];
+    color.push("#ee4340");
+    color.push("#eea01d");
+    color.push("#e9ee3d");
+    color.push("#4eee14");
+    color.push("#29eee8");
+    color.push("#0b50ee");
+    color.push("#be32ee");
+
+    var BubblePosition=[];
+
+    var Casting=0;//是否正在发射泡泡中
+    var CastingAngle=0;//发射角度
+    var NewBubble=1;//是否需要创建一个新的泡泡
+    var CastingBubble;//发射器上 或正在发射中的 泡泡
+    var CastingBubble1=new Bubble();
+    var CastingVelocity=5;// 发射速度
+    var CastingBubbleColliionFlag=0;//是否撞到了左右两边的边框
+    var CastingBubbleDeleted=0;//发射出去的泡泡是否要消除
+
+
+    var EBubblesI=[];//检测要消除的泡泡 的BubblePosition下标i
+    var EBubblesJ=[];//检测要消除的泡泡 的BubblePosition下标j
+
+    var FallingBubbles=[];//要掉落的泡泡
+    var FallingVelocity=5;//掉落速度
+
+    var GameOver=0;//游戏是否结束
+    var GameOverSaying="游戏结束！请按A键重新开始游戏。"
+
+
+    var EliminatingBubbles=[];//被消除的泡泡数组
+
+    //创建画布
+    var canvas = document.getElementById('canvas');
+    //画布大小
+    canvas.width = CanvasWidth;
+    canvas.height = CanvasHeight;
+    //如果浏览器不支持 输出提示
+    if (canvas.getContext("2d")) {
+        var context = canvas.getContext('2d');//使用context绘制
+    }
+    else {
+        alert('当前浏览器好像不支持canvas哦，更换浏览器后再试试吧。')
+    }
+
+    window.onload=function () {
+        //一些初始化操作
+        init();
+        //初始化泡泡
+        start();
+        //动画函数
+        setInterval(
+            function () {
+                context.clearRect(0, 0, CanvasWidth, CanvasHeight);
+                render(context);
+                update();
+            }
+        )
+
+    }
+
+        var render=function (context) {
+            //画一个发射器
+            RenderCaster(caster,context);
+            //画泡泡
+            RenderBubbles(context);
+            //画终点线
+            RenderDeadLine(context);
+            //画发射器上 或正在发射中的 泡泡
+            RenderCastingBubble(context);
+            //画下落的泡泡们
+            renderFallingBubbles();
+            //画正在消失的泡泡们
+            renderEliminatingBubbles();
+
+        }
+        //在x,y画一个颜色为color的圆
+        var drawABubble=function(x,y,color)
+        {
+            //画圆
+            context.beginPath();
+            context.fillStyle=color;
+            context.arc(x,y,BubbleR,0,2*Math.PI);
+            context.fill();
+            context.closePath();
+        }
+                //画泡泡的函数
+        var RenderBubbles=function (context) {
+            //首先 要考虑的是 怎么弄那个位置什么的啊位置最好是整数的啊
+//            var bubbleX=BubbleR;
+//            var bubbleY=BubbleR;
+//
+//            while(bubbleX<1024)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,color[1]);
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR+BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR+BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR+BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR+BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR+BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR+BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                drawABubble(bubbleX,bubbleY,"#67EE5F");
+//                bubbleX+=2*BubbleR;
+//            }
+
+            var i=0;
+            while(i<Bubbles.length)
+            {
+                drawABubble(Bubbles[i].position.x,Bubbles[i].position.y,Bubbles[i].color);
+                i++;
+            }
+        }
+
+        var update=function () {
+
+        }
+
+        //指定位置，角度，绘制发射器
+        var CreateCaster=function(
+            caster
+        ){
+            //调用函数，从指定位置画出发射器的主要形状 圆形
+            //根据发射角度计算出三角形的位置
+            //调用函数，根据指定位置和角度绘制三角形
+            //调用函数，根据指定的角度画线
+        }
+
+
+
+        //根据传入的发射器对象绘制发射器
+        var RenderCaster=function(c,context){
+
+            //一个发射器由一个圆 一个三角形 一条虚线组成
+            //画个圆圈
+            context.beginPath();//开始画
+            context.strokeStyle=c.color;//设置颜色
+            context.lineWidth=c.width;//设置外圈的粗细
+            context.arc(c.position.x,c.position.y,c.size,0,2*Math.PI);//设置圆的位置，大小，画多少
+            context.stroke();//笔触 画圆圈
+            context.closePath();//画完
+
+            //再在中间画个圆哈哈
+            context.beginPath();//开始画
+            context.fillStyle=c.color;//设置颜色
+            if(caster.width==CasterWidth)//发射器正常的大小
+                context.arc(c.position.x,c.position.y,c.size/2,0,2*Math.PI);//设置圆的位置，大小，画多少，半径为外圆的一半
+            else//否则就是按下发射键的时候 中间的圆变小一点
+                context.arc(c.position.x,c.position.y,c.size/4,0,2*Math.PI);//设置圆的位置，大小，画多少，半径为外圆的四分之一
+            context.fill();//填充 画一个实心圆
+            context.closePath();//画完
+
+            //根据角度画三角形
+            context.beginPath();//开始画
+            context.fillStyle=caster.color;//设置颜色
+            caster.updateTrianglePosition( );//根据角度更新三角形的位置坐标
+
+            context.moveTo(caster.trianglePosition1X,caster.trianglePosition1Y);//画笔移动到第一个顶点
+            context.lineTo(caster.trianglePosition2X,caster.trianglePosition2Y);//从第一个顶点画到第二个顶点
+            context.lineTo(caster.trianglePosition3X,caster.trianglePosition3Y);//从第二个顶点画到第三个顶点
+            context.fill();//填充 画一个实心三角形
+            context.closePath();//画完
+
+            //根据角度画虚线
+            var LineStartPointX=caster.position.x;//笔的X坐标 从圆心开始画
+            var LineStartPointY=caster.position.y;//笔的X坐标 从圆心开始画
+            context.beginPath();//开始画
+            context.lineWidth=LIneWidth;//设置画笔的粗细
+            context.strokeStyle=caster.color;//设置颜色 与发射器颜色一致
+            context.moveTo(LineStartPointX,LineStartPointY);//笔移动到圆心
+            var LineAngle=caster.angle;
+
+            var flag=0;
+            while(LineStartPointY>0&&LineStartPointY<CanvasHeight)//Y坐标要在0~550之间 这是画布大小
+            {
+                if(LineStartPointX<BubbleR||LineStartPointX>CanvasWidth-BubbleR)//如果碰到了左右两边 就要处理一下角度
+                {
+                    if(flag!=1)
+                    {
+                        LineAngle=540-LineAngle;
+                    }
+                    flag=1;
+                }
+                else{
+                    flag=0;
+                }
+                //计算画到哪里，画一小段线段
+                LineStartPointX=LineStartPointX+caster.lineLength*Math.cos(LineAngle* 0.017453293);
+                LineStartPointY=LineStartPointY+caster.lineLength*Math.sin(LineAngle* 0.017453293);
+                context.lineTo(LineStartPointX,LineStartPointY);
+                context.stroke();//笔触 画线
+
+                //计算并移动画笔到下一次开始画的地方
+                context.beginPath();//开始画
+                LineStartPointX=LineStartPointX+caster.lineInterval*Math.cos(LineAngle* 0.017453293);
+                LineStartPointY=LineStartPointY+caster.lineInterval*Math.sin(LineAngle* 0.017453293);
+                context.moveTo(LineStartPointX,LineStartPointY);
+            }
+            context.stroke();//笔触 画线
+            context.closePath();//画完
+        }
+        //画终点线
+        var RenderDeadLine=function (context) {
+            context.beginPath();//开始画
+            context.lineWidth=LIneWidth;//设置画笔的粗细
+            context.strokeStyle=caster.color;//设置颜色 与发射器颜色一致
+            i=5;
+            while(i<1000)
+            {
+                context.moveTo(i,deadLineY);//笔移动到圆心
+                context.lineTo(i+15,deadLineY);
+                i=i+25;
+            }
+            context.stroke();//笔触 画线
+        }
+
+
+        document.addEventListener('keydown',onKeyDown,false);
+        document.addEventListener('keyup',onKeyUp,false);
+
+    document.addEventListener('mousemove',onMouseMove,false);
+    document.addEventListener('mousedown',onMouseDown,false);
+    document.addEventListener('mouseup',onMouseUp,false);
+
+        function onKeyDown(event) {
+//            alert(event.keyCode);
+//            如果按下的是←
+            if(event.keyCode==37){
+//                如果角度大于最小转角加一次旋转的角度  则向左转（即角度减小）  TurnAngle为一次减小的角度
+                if(caster.angle>MinTurnAngle+TurnAngle){
+                    caster.angle-=TurnAngle;
+                }
+            }
+//            如果按下的是→
+            else if(event.keyCode==39){
+//                如果角度小于最大转角减一次旋转的角度  则向右转（即角度增大）  TurnAngle为一次减小的角度
+                if(caster.angle<MaxTurnAngle-TurnAngle){
+                    caster.angle+=TurnAngle;
+                }
+            }
+//            如果按下的是空格键
+            else if(event.keyCode==32){
+                if(GameOver==1){//如果游戏结束了，则不再发射
+                    alert(GameOverSaying);
+                    return;
+                }
+                caster.width=CasterWidthMax;//改变发射器的大小 做出动画效果
+                if(Casting!=1)
+                {
+                    Casting=1;
+                    CastingAngle=caster.angle;//记录发射角度
+                }//发射泡泡
+            }
+//            如果按下的是A  如果游戏结束了 按下A 开始游戏
+            else if(event.keyCode==65){
+                if(GameOver==1){//如果游戏结束了，则不再发射 游戏开始
+                    start();
+                    return;
+                }
+                caster.width=CasterWidthMax;//改变发射器的大小 做出动画效果
+                if(Casting!=1)
+                {
+                    Casting=1;
+                    CastingAngle=caster.angle;//记录发射角度
+                }//发射泡泡
+            }
+        }
+
+        function onKeyUp(event) {
+//            如果按下的是A
+            if(event.keyCode==65){
+                caster.width=CasterWidth;
+            }
+//            如果按下的是空格键
+            if(event.keyCode==32){
+                caster.width=CasterWidth;
+            }
+
+        }
+
+        function onMouseMove(event) {
+            var mousex=event.clientX-canvas.getBoundingClientRect().left;
+            var mousey=event.clientY-canvas.getBoundingClientRect().top;
+            var angle;
+            if((mousey-50)>=caster.position.y){
+                //鼠标位置在发射器之下 不改变发射器的角度
+                return;
+            }
+            angle=360-(Math.atan((caster.position.y-mousey)/(mousex-caster.position.x))*180/Math.PI);
+            if(angle>360){
+                angle=angle-180;
+            }
+            if(angle<185){
+                angle=185;
+            }
+            if(angle>355){
+                angle=355;
+            }
+//            console.log("caster position:"+caster.position.x+","+caster.position.y);
+//            console.log("mouse position:"+mousex+","+mousey);
+//            console.log("caster.angle="+caster.angle);
+//            console.log("the angle="+angle);
+            caster.angle=angle;
+
+        }
+
+        //鼠标按下时 触发事件 发射器改变形状  发射器变大
+        function onMouseDown() {
+            if(GameOver==1){//如果游戏结束了，则不再发射
+        alert(GameOverSaying);
+        return;
+    }
+            caster.width=CasterWidthMax;//改变发射器的大小 做出动画效果
+            if(Casting!=1)
+            {
+                Casting=1;
+                CastingAngle=caster.angle;//记录发射角度
+            }//发射泡泡
+        }
+
+        //当鼠标抬起时 触发事件 发射泡泡  发射器变回原样
+        function onMouseUp() {
+            caster.width=CasterWidth;
+        }
+
+//        一些初始化操作
+        var init=function () {
+            //初始化泡泡的位置数组
+            for(var i=0;i<13;i++)//13行
+            {
+                BubblePosition[i]=[];
+                for(var j=0;j<25;j++)//25列
+                {
+                    var bp=new Bubble();
+                    bp.positionTag.i=i;
+                    bp.positionTag.j=j;
+                    if(i%2==0)
+                    {
+                        bp.position.x=j*2*BubbleR+BubbleR;
+                        bp.position.y=i*Math.sqrt(3)*BubbleR+BubbleR;
+                    }
+                    else
+                    {
+                        bp.position.x=j*2*BubbleR+2*BubbleR;
+                        bp.position.y=i*Math.sqrt(3)*BubbleR+BubbleR;
+                    }
+                    BubblePosition[i].push(bp);
+                }
+            }
+        }
+//        初始化三行泡泡
+        var initBubbles=function () {
+
+
+            //初始化三行泡泡 并且将之添加到泡泡数组和泡泡位置数组中
+
+            for(i=0;i<3;i++)
+            {
+                if(i%2==0)
+                {
+                    for(j=0;j<25;j++)//25个泡泡的行
+                    {
+                        var bub=new Bubble();
+                        bub.position.x=BubblePosition[i][j].position.x;
+                        bub.position.y=BubblePosition[i][j].position.y;
+                        bub.positionTag.i=i;
+                        bub.positionTag.j=j;
+                        bub.color=rendomBubbleColor();
+                        addBubble(bub);
+                    }
+                }
+                else
+                {
+                    for(j=0;j<24;j++)//24个泡泡的行
+                    {
+                        var bub=new Bubble();
+                        bub.position.x=BubblePosition[i][j].position.x;
+                        bub.position.y=BubblePosition[i][j].position.y;
+                        bub.positionTag.i=i;
+                        bub.positionTag.j=j;
+                        bub.color=rendomBubbleColor();
+                        addBubble(bub);
+                    }
+                }
+            }
+//            var bubbleX=BubbleR;
+//            var bubbleY=BubbleR;
+//
+//            while(bubbleX<1024)
+//            {
+//                //画圆
+//                var c=parseInt(7*Math.random());
+//                var bub=new Bubble();
+//                bub.position.x=bubbleX;
+//                bub.position.y=bubbleY;
+//                bub.color=color[c];
+//                addBubble(bub);
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR+BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                var c=parseInt(7*Math.random());
+//                var bub=new Bubble();
+//                bub.position.x=bubbleX;
+//                bub.position.y=bubbleY;
+//                bub.color=color[c];
+//                addBubble(bub);
+//                bubbleX+=2*BubbleR;
+//            }
+//            var bubbleX=BubbleR;
+//            var bubbleY=bubbleY+BubbleR*Math.sqrt(3);
+//            while(bubbleX<=CanvasWidth-BubbleR)
+//            {
+//                //画圆
+//                var c=parseInt(7*Math.random());
+//                var bub=new Bubble();
+//                bub.position.x=bubbleX;
+//                bub.position.y=bubbleY;
+//                bub.color=color[c];
+//                addBubble(bub);
+//                bubbleX+=2*BubbleR;
+//            }
+//
+
+
+        }
+        //返回随机一个泡泡颜色
+        var rendomBubbleColor=function()
+        {
+            return color[parseInt(7*Math.random())];
+        }
+        //添加泡泡  添加到泡泡数组和泡泡位置数组中
+        var addBubble=function (bubble) {
+            bubble.live=1;
+            var i,j;
+            i=bubble.positionTag.i;
+            j=bubble.positionTag.j;
+//            i=parseInt(bubble.position.y/(Math.sqrt(3)*BubbleR));
+//            if(i%2==0)//
+//                j=Math.round((bubble.position.x-BubbleR)/(2*BubbleR));
+//            else
+//                j=Math.round((bubble.position.x-(2*BubbleR))/(2*BubbleR));
+//            console.log('('+i+','+j+')');
+//            BubblePosition[i][j].setPosition(bubble.position.x,bubble.position.y);
+            bubble.position.x=BubblePosition[i][j].position.x;
+            bubble.position.y=BubblePosition[i][j].position.y;
+            BubblePosition[i][j].color=bubble.color;
+            BubblePosition[i][j].live=bubble.live;
+//            bubble.positionTag.i=i;
+//            bubble.positionTag.j=j;
+            Bubbles.push(bubble);
+        }
+
+
+        //画发射器上 或正在发射中的 泡泡
+        var RenderCastingBubble=function(context){
+            if(NewBubble==1)//需要新建一个泡泡 游戏刚刚开始或者是刚刚发射完一个泡泡
+            {
+                NewBubble=0;
+                CastingBubble=new Bubble();
+                CastingBubble.color=rendomBubbleColor();
+                CastingBubble.position.x=caster.position.x;
+                CastingBubble.position.y=caster.position.y;
+                drawBubble(CastingBubble);
+            }
+            else if(Casting==1)//正在发射泡泡
+            {
+                CastingBubble.position.x=CastingBubble.position.x+CastingVelocity*Math.cos(CastingAngle* 0.017453293);
+                CastingBubble.position.y=CastingBubble.position.y+CastingVelocity*Math.sin(CastingAngle* 0.017453293);
+                collisionDetecting(CastingBubble);//检测是否发生碰撞
+            }
+
+            drawBubble(CastingBubble);
+        }
+
+        //传入一个泡泡对象  将这个泡泡画出来
+        var drawBubble=function (bubble) {
+            //画圆
+            context.beginPath();
+            context.fillStyle=bubble.color;
+            context.arc(bubble.position.x,bubble.position.y,bubble.r,0,2*Math.PI);
+            context.fill();
+            context.closePath();
+        }
+
+        //检测是否发生碰撞  两类碰撞 碰到泡泡 或 碰到边框
+            //  碰到泡泡  计算方位  调整泡泡的位置
+            //  碰到边框  角度变化  调整CastingAngle
+        var collisionDetecting=function (bubble) {
+            if(GameOver==1){
+                return;
+            }
+            var i=0,distance,minDistance=10000,bubble1=new Bubble();
+            //检测是否碰到泡泡或顶端
+            while(i<Bubbles.length)
+            {
+                //计算泡泡和其他泡泡的距离
+                distance=Math.sqrt((bubble.position.x-Bubbles[i].position.x)*(bubble.position.x-Bubbles[i].position.x)+(bubble.position.y-Bubbles[i].position.y)*(bubble.position.y-Bubbles[i].position.y));
+                if(distance<=BubbleR*2){//检测到距离小于等于直径 发生碰撞
+                    if(distance<minDistance)
+                    {
+                        minDistance=distance;
+                        bubble1.positionTag.i=Bubbles[i].positionTag.i;
+                        bubble1.positionTag.j=Bubbles[i].positionTag.j;
+                    }
+                }
+                i++;
+            }
+            if(minDistance<10000||CastingBubble.position.y<10)
+            {
+                if(CastingBubble.position.y>=deadLineY-BubbleR){//如果泡泡碰到了终止线
+                    GameOver=1;
+                }
+                CastingBubble1.position.x=CastingBubble.position.x;
+                CastingBubble1.position.y=CastingBubble.position.y;
+                CastingBubble1.color=CastingBubble.color;
+                Casting=0;//发射结束
+                NewBubble=1;//需要创建一个新的泡泡
+                adjustPosition();//调整CastingBubble1的位置
+                if(CastingBubbleDeleted!=0){//如果刚刚发射的泡泡已经被消除了，就不用再添加到泡泡数组和泡泡的位置数组中了
+                    CastingBubbleDeleted=0;
+                }
+                else{
+                    addBubble(CastingBubble);//将泡泡加入到泡泡数组和泡泡的位置数组中
+                }
+            }
+
+            //检测是否碰到边框
+            if(CastingBubble.position.x<BubbleR||CastingBubble.position.x>CanvasWidth-BubbleR)//如果碰到了左右两边 就要处理一下角度
+            {
+                if(CastingBubbleColliionFlag!=1)
+                {
+                    CastingAngle=540-CastingAngle;
+                }
+                CastingBubbleColliionFlag=1;
+            }
+            else{
+                CastingBubbleColliionFlag=0;
+            }
+        }
+        //发射的泡泡碰撞到一个泡泡之后，计算调整泡泡的位置。
+        var adjustPosition=function(){//发射中的泡泡 被碰到的泡泡
+
+//            //如果在被碰撞的泡泡的左边
+//            if(castedBubble.position.x>castingBubble.position.x){
+//                //上或者中
+//                if(castedBubble.position.y>castingBubble.position.y){
+//                    if(((castingBubble.position.y-castedBubble.position.y)/(castingBubble.position.x-castedBubble.position.x))>Math.sqrt(3)){
+//                        //上  要判断是否左上已经有泡泡
+//                        bub=findLeftUp(castedBubble);
+//                        if(BubblePosition[castedBubble.positionTag.i-1][bub].live){
+//                            adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i-1][bub]);
+//                        }
+//                        else{
+//                            castingBubble.position.x=BubblePosition[castedBubble.positionTag.i-1][bub].position.x;
+//                            castingBubble.position.y=BubblePosition[castedBubble.positionTag.i-1][bub].position.y;
+//                        }
+//                    }
+//                    else{
+//                        //中  判断左是否已经有泡泡，  若有，则用该左泡泡计算和调整位置
+//                        if(BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j-1].live){
+//                            adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j-1]);
+//                        }
+//                        else{
+//                            castingBubble.position.x=BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j-1].position.x;
+//                            castingBubble.position.y=BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j-1].position.y;
+//                        }
+//                    }
+//                }
+//                //中或者下
+//                else{
+//                    if(((castedBubble.position.y-castingBubble.position.y)/(castingBubble.position.x-castedBubble.position.x))>Math.sqrt(3)){
+//                        //下  要判断是否左下已经有泡泡， 若有，则用该左下泡泡计算和调整位置
+//                        bub=findLeftDown(castedBubble);
+//                        if(BubblePosition[castedBubble.positionTag.i+1][bub].live){
+//                            adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i+1][bub]);
+//                        }
+//                        else{
+//                            castingBubble.position.x=BubblePosition[castedBubble.positionTag.i+1][bub].position.x;
+//                            castingBubble.position.y=BubblePosition[castedBubble.positionTag.i+1][bub].position.y;
+//                        }
+//                    }
+//                    else{
+//                        //中  判断左是否已经有泡泡，  若有，则看左下是否有泡泡
+//                        if(BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j-1].live){
+//                            bub=findLeftDown(castedBubble);
+//                            if(BubblePosition[castedBubble.positionTag.i+1][bub].live){
+//                                adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i+1][bub]);
+//                            }
+//                            else{
+//                                castingBubble.position.x=BubblePosition[castedBubble.positionTag.i+1][bub].position.x;
+//                                castingBubble.position.y=BubblePosition[castedBubble.positionTag.i+1][bub].position.y;
+//                            }
+////                            adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j-1]);
+//                        }
+//                        else{
+//                            castingBubble.position.x=BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j-1].position.x;
+//                            castingBubble.position.y=BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j-1].position.y;
+//                        }
+//                    }
+//                }
+//            }
+//            //如果在被碰撞的泡泡的右边
+//            else{
+//                //上或者中
+//                if(castedBubble.position.y>castingBubble.position.y){
+//                    if(((castingBubble.position.y-castedBubble.position.y)/(castedBubble.position.x-castingBubble.position.x))>Math.sqrt(3)){
+//                        //上  要判断是否右上已经有泡泡， 若有，则用该右上泡泡计算和调整位置
+//                        bub=findRightUp(castedBubble);
+//                        if(BubblePosition[castedBubble.positionTag.i+1][bub].live){
+//                            adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i+1][bub]);
+//                        }
+//                        else{
+//                            castingBubble.position.x=BubblePosition[castedBubble.positionTag.i+1][bub].position.x;
+//                            castingBubble.position.y=BubblePosition[castedBubble.positionTag.i+1][bub].position.y;
+//                        }
+//                    }
+//                    else{
+//                        //中  判断右是否已经有泡泡，  若有，则用该右泡泡计算和调整位置
+//                        if(BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j+1].live){
+//                            adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j+1]);
+//                        }
+//                        else{
+//                            castingBubble.position.x=BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j+1].position.x;
+//                            castingBubble.position.y=BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j+1].position.y;
+//                        }
+//                    }
+//                }
+//                //中或者下
+//                else{
+//                    if(((castedBubble.position.y-castingBubble.position.y)/(castedBubble.position.x-castingBubble.position.x))>Math.sqrt(3)){
+//                        //下  要判断是否左下已经有泡泡， 若有，则用该左下泡泡计算和调整位置
+//                        bub=findRightDown(castedBubble);
+//                        if(BubblePosition[castedBubble.positionTag.i+1][bub].live){
+//                            adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i+1][bub]);
+//                        }
+//                        else{
+//                            castingBubble.position.x=BubblePosition[castedBubble.positionTag.i+1][bub].position.x;
+//                            castingBubble.position.y=BubblePosition[castedBubble.positionTag.i+1][bub].position.y;
+//                        }
+//                    }
+//                    else{
+//                        //中  判断右是否已经有泡泡，  若有，则看右下是否有泡泡
+//                        if(BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j+1].live){
+//                            bub=findRightDown(castedBubble);
+//                            if(BubblePosition[castedBubble.positionTag.i+1][bub].live){
+//                                adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i+1][bub]);
+//                            }
+//                            else{
+//                                castingBubble.position.x=BubblePosition[castedBubble.positionTag.i+1][bub].position.x;
+//                                castingBubble.position.y=BubblePosition[castedBubble.positionTag.i+1][bub].position.y;
+//                            }
+////                            adjustPostion(castingBubble,BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j+1]);
+//                        }
+//                        else{
+//                            castingBubble.position.x=BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j+1].position.x;
+//                            castingBubble.position.y=BubblePosition[castedBubble.positionTag.i][castedBubble.positionTag.j+1].position.y;
+//                        }
+//                    }
+//                }
+//            }
+            var i,j,n,distance,minDistance=10000,eFlag;
+            var dx,dy;
+//            console.log('CastingBubble1.position:'+CastingBubble1.position.x+','+CastingBubble1.position.y)
+
+            for(i=0;i<13;i++)
+            {
+                if(i%2==0)n=25;
+                else n=24;
+                for(j=0;j<n;j++)
+                {
+                    dx=Math.round(CastingBubble1.position.x-BubblePosition[i][j].position.x);
+                    dy=Math.round(Math.round(CastingBubble1.position.y)-Math.round(BubblePosition[i][j].position.y));
+                    distance=Math.sqrt(dx*dx+dy*dy);
+
+//                    console.log('BubblePosition[i][j].position:'+BubblePosition[i][j].position.x+','+BubblePosition[i][j].position.y)
+//                    console.log(i+','+j+','+distance);
+                    if(distance<minDistance&&BubblePosition[i][j].live==0){//调整到最近的一个没有泡泡的位置
+                        minDistance=distance;
+                        CastingBubble.position.x=BubblePosition[i][j].position.x;
+                        CastingBubble.position.y=BubblePosition[i][j].position.y;
+                        CastingBubble.positionTag.i=i;
+                        CastingBubble.positionTag.j=j;
+                    }
+                }
+                //计算确定了位置之后 在该地方要打上颜色
+                BubblePosition[CastingBubble.positionTag.i][CastingBubble.positionTag.j].color=CastingBubble.color;
+            }
+            eFlag=eliminationDetecting(CastingBubble.positionTag.i,CastingBubble.positionTag.j);//检测是否要消除泡泡
+            if(eFlag>=3){
+                CastingBubbleDeleted=1;
+                eliminateBubbles(CastingBubble.positionTag.i,CastingBubble.positionTag.j);
+            }//有三个以上的同色泡泡 则消除泡泡
+
+            //消除了泡泡之后要检测有无新的泡泡要下落
+            fallingBubbleDetecting();
+        }
+
+        //寻找左上 返回j
+        var findLeftUp=function (bubble) {
+
+            if(bubble.positionTag.i%2==0){
+//                if(bubble.positionTag.i==0||bubble.positionTag.j==0)return false;
+                return bubble.positionTag.j-1;
+            }
+            else
+            {
+                return bubble.positionTag.j;
+            }
+        }
+        //寻找左下
+        var findLeftDown=function (bubble) {
+
+            if(bubble.positionTag.i%2==0){
+//                if(bubble.positionTag.i==12||bubble.positionTag.j==0)return false;
+                return bubble.positionTag.j-1;
+            }
+            else
+            {
+                return bubble.positionTag.j;
+            }
+        }
+
+        //寻找右上
+        var findRightUp=function (bubble) {
+
+            if(bubble.positionTag.i%2==0){
+//                if(bubble.positionTag.i==0||bubble.positionTag.j==25)return false;
+                return bubble.positionTag.j;
+            }
+            else
+            {
+                return bubble.positionTag.j+1;
+            }
+        }
+
+        //寻找右下
+        var findRightDown=function (bubble) {
+
+            if(bubble.positionTag.i%2==0){
+//                if(bubble.positionTag.i==12||bubble.positionTag.j==25)return false;
+                return bubble.positionTag.j;
+            }
+            else
+            {
+                return bubble.positionTag.j+1;
+            }
+        }
+
+        //根据传入的BubblePosition对象下标来检测 是否要消除泡泡
+        var eliminationDetecting=function (i,j) {
+            //广度优先搜素看是否
+            EBubblesI.splice(0,EBubblesI.length);//清空数组
+            EBubblesJ.splice(0,EBubblesJ.length);//清空数组
+            EBubblesI.push(i);
+            EBubblesJ.push(j);
+            //检测有多少与刚刚发射的泡泡同色且相邻的泡泡
+            var num=0,num1=0;
+            //数组非空 继续递归
+            while(EBubblesI.length!=0&&EBubblesJ.length!=0){
+                num1=eDetecting(BubblePosition[i][j].color);
+                num=num+num1;
+            }
+            //清空访问痕迹
+            var x,y;
+            for(x=0;x<13;x++)
+            {
+                for(y=0;y<25;y++)
+                {
+                    BubblePosition[x][y].visit=0;
+                }
+            }
+
+//            console.log(num);
+            return num;
+
+
+        }
+        //根据泡泡的消除检测下标数组和 传入的颜色 递归搜索相邻的同色泡泡的个数
+        var eDetecting=function (DetectedColor) {
+            var i=EBubblesI.shift();//删除并返回第一数组元素
+            var j=EBubblesJ.shift();
+            var num=0,num1=0;
+            var childi,childj;
+            if(i<0||i>12||j<0||j>24)return num;
+            if(i%2==1&&j>23)return num;
+            if(BubblePosition[i][j].visit!=1)//若没有被访问过
+            {
+                BubblePosition[i][j].visit=1;
+                //看颜色对不对 对则加一 并且将之的孩子加入数组中
+                if(BubblePosition[i][j].color==DetectedColor){
+                    num=num+1;
+                    //左
+                    childi=i;
+                    childj=j-1;
+                    if(childj<0){//左孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+
+                    //左上
+                    childi=i-1;
+                    childj=findLeftUp(BubblePosition[i][j]);
+                    if(childi<0||childj<0){//左上孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                    //左下
+                    childi=i+1;
+                    childj=findLeftDown(BubblePosition[i][j]);
+                    if(childi>12||childj<0){//左下孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                    //右
+                    childi=i;
+                    childj=j+1;
+                    if(childi%2==0&&childj>24){//右孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                    //右上
+                    childi=i-1;
+                    childj=findRightUp(BubblePosition[i][j]);
+                    if(childi%2==0&&childj>24){//右上孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右上孩子不存在
+                        ;
+                    }
+                    else if(childi<0){//右上孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                    //右下
+                    childi=i+1;
+                    childj=findRightDown(BubblePosition[i][j]);
+                    if(childi%2==0&&childj>24){//右下孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右下孩子不存在
+                        ;
+                    }
+                    else if(childi>12){//右下孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                }
+            }
+
+//            if(EBubblesI.length!=0&&EBubblesJ.length!=0){
+//                num1=eDetecting(DetectedColor);
+//                num=num+num1;
+//            }
+
+            //最后返回num
+            return num;
+        }
+
+        //将i，j下标存入EBubbleI和EBubbleJ下标数组
+        var pushEBubbles=function (i,j) {
+            for(var x=0;x<EBubblesI.length;x++)
+            {
+                if(EBubblesI[x]==i&&EBubblesJ[x]==j)//已有的元素就不加进来了
+                    return ;
+            }
+            EBubblesI.push(i);
+            EBubblesJ.push(j);
+        }
+
+        //根据传入的BubblePosition对象下标来消除泡泡
+        var eliminateBubbles=function (i,j) {
+            //广度优先搜素看是否
+            EBubblesI.splice(0,EBubblesI.length);//清空数组
+            EBubblesJ.splice(0,EBubblesJ.length);//清空数组
+            EBubblesI.push(i);
+            EBubblesJ.push(j);
+            //数组非空 继续递归
+            while(EBubblesI.length!=0&&EBubblesJ.length!=0){
+                eliminate(BubblePosition[i][j].color);
+            }
+            //清空访问痕迹
+            var x,y;
+            for(x=0;x<13;x++)
+            {
+                for(y=0;y<25;y++)
+                {
+                    BubblePosition[x][y].visit=0;
+                }
+            }
+        }
+
+        //根据EBubbleI和EBubbleJ下标数组 删除指定泡泡及其相邻同色泡泡
+        var eliminate=function (DetectedColor) {
+            var i=EBubblesI.shift();//删除并返回第一数组元素
+            var j=EBubblesJ.shift();
+            var num=0;
+            var childi,childj;
+            if(i<0||i>12||j<0||j>24)return ;//如果该泡泡不存在
+            if(i%2==1&&j>23)return ;//如果该泡泡不存在
+            if(BubblePosition[i][j].visit!=1)//若没有被访问过
+            {
+                BubblePosition[i][j].visit=1;
+                //看颜色对不对 对则将之的孩子加入数组中 然后将之删除
+                if(BubblePosition[i][j].color==DetectedColor){
+                    //左
+                    childi=i;
+                    childj=j-1;
+                    if(childj<0){//左孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+
+                    //左上
+                    childi=i-1;
+                    childj=findLeftUp(BubblePosition[i][j]);
+                    if(childi<0||childj<0){//左上孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                    //左下
+                    childi=i+1;
+                    childj=findLeftDown(BubblePosition[i][j]);
+                    if(childi>12||childj<0){//左下孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                    //右
+                    childi=i;
+                    childj=j+1;
+                    if(childi%2==0&&childj>24){//右孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                    //右上
+                    childi=i-1;
+                    childj=findRightUp(BubblePosition[i][j]);
+                    if(childi%2==0&&childj>24){//右上孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右上孩子不存在
+                        ;
+                    }
+                    else if(childi<0){//右上孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+                    //右下
+                    childi=i+1;
+                    childj=findRightDown(BubblePosition[i][j]);
+                    if(childi%2==0&&childj>24){//右下孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右下孩子不存在
+                        ;
+                    }
+                    else if(childi>12){//右下孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1&&BubblePosition[childi][childj].visit!=1){
+                        pushEBubbles(childi,childj);
+                    }
+
+                    //删除该泡泡
+                    deleteBubble(i,j);
+
+                }
+            }
+        }
+
+        //根据BubblePosition数组下标 删除指定泡泡 加入EliminatingBubbles数组中
+        var deleteBubble=function(i,j){
+            var x=0,bub;
+            while(x<Bubbles.length){
+                if(Bubbles[x].positionTag.i==i&&Bubbles[x].positionTag.j==j){
+                    bub=new Bubble();
+                    bub.position.x=Bubbles[x].position.x;
+                    bub.position.y=Bubbles[x].position.y;
+                    bub.color=Bubbles[x].color;
+                    bub.gotTheBiggest=false;
+                    Bubbles.splice(x,1);
+                    EliminatingBubbles.push(bub);
+                    break;
+                }
+                x++;
+            }
+            BubblePosition[i][j].live=0;
+        }
+
+        //标记每个泡泡是否链接到顶端 然后将没有链接到顶的泡泡存入fallingBubble中  并且从Bubbles和BubblePosition中删除
+        var fallingBubbleDetecting=function () {
+            var i,j,n,bub;
+            for(i=0;i<13;i++){
+                for(j=0;j<25;j++)
+                {
+                    BubblePosition[i][j].linkToTheTop=false;
+                }
+            }
+            j=0;
+            while(j<25){
+                linkToTheTop(0,j);
+                j++;
+            }
+
+            for(i=0;i<13;i++)
+            {
+                if(i%2==0){
+                    n=25;
+                }else{
+                    n=24;
+                }
+                for(j=0;j<n;j++){
+                    if(BubblePosition[i][j].linkToTheTop==false&&BubblePosition[i][j].live==1){
+                        bub=new Bubble();
+                        bub.color=BubblePosition[i][j].color;
+                        bub.position.x=BubblePosition[i][j].position.x;
+                        bub.position.y=BubblePosition[i][j].position.y;
+                        FallingBubbles.push(bub);
+                        deleteBubble(i,j);
+                    }
+                }
+            }
+        }
+
+        var linkToTheTop=function (i,j) {
+            if(BubblePosition[i][j].linkToTheTop||BubblePosition[i][j].live==0)return;//若已经标记过了，或者该泡泡不存在，则不用再继续了
+            BubblePosition[i][j].linkToTheTop=true;
+            var childi,childj;
+                    //左
+                    childi=i;
+                    childj=j-1;
+                    if(childj<0){//左孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1){//若该泡泡存在
+                        linkToTheTop(childi,childj);
+                    }
+
+                    //左上
+                    childi=i-1;
+                    childj=findLeftUp(BubblePosition[i][j]);
+                    if(childi<0||childj<0){//左上孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1){
+                        linkToTheTop(childi,childj);
+                    }
+                    //左下
+                    childi=i+1;
+                    childj=findLeftDown(BubblePosition[i][j]);
+                    if(childi>12||childj<0){//左下孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1){
+                        linkToTheTop(childi,childj);
+                    }
+                    //右
+                    childi=i;
+                    childj=j+1;
+                    if(childi%2==0&&childj>24){//右孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1){
+                        linkToTheTop(childi,childj);
+                    }
+                    //右上
+                    childi=i-1;
+                    childj=findRightUp(BubblePosition[i][j]);
+                    if(childi%2==0&&childj>24){//右上孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右上孩子不存在
+                        ;
+                    }
+                    else if(childi<0){//右上孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1){
+                        linkToTheTop(childi,childj);
+                    }
+                    //右下
+                    childi=i+1;
+                    childj=findRightDown(BubblePosition[i][j]);
+                    if(childi%2==0&&childj>24){//右下孩子不存在
+                        ;
+                    }
+                    else if(childi%2==1&&childj>23){//右下孩子不存在
+                        ;
+                    }
+                    else if(childi>12){//右下孩子不存在
+                        ;
+                    }
+                    else if(BubblePosition[childi][childj].live==1){
+                        linkToTheTop(childi,childj);
+                    }
+        }
+
+        //渲染 掉落中的泡泡
+        var renderFallingBubbles=function () {
+            var i=0;
+            while(i<FallingBubbles.length){
+                FallingBubbles[i].position.y+=FallingVelocity;//调整泡泡的位置 使其下落
+                drawBubble(FallingBubbles[i]);
+                if(FallingBubbles[i].position.y>500){//若下落到一定的地方 则消失 （从数组中删去）
+                    FallingBubbles.splice(i,1);
+                    i--;
+                }
+                i++;
+            }
+        }
+
+
+    //            游戏开始。
+        var start=function () {
+            GameOver=0;//设置游戏结束标志为0
+//            清空Bubbles数组 BubblePosition数组
+            var i=0,j;
+            while(Bubbles.length>0){
+                Bubbles.shift();
+                i++;
+            }
+            console.log("清理数组Bubble完毕,数组目前长度"+Bubbles.length);
+            for(i=0;i<13;i++)
+            {
+                for(j=0;j<25;j++){
+                    BubblePosition[i][j].live=0
+                }
+            }
+//            初始化三行泡泡
+            initBubbles()
+        }
+
+        //渲染被消除的泡泡
+        var renderEliminatingBubbles=function () {
+            var i=0;
+            while(i<EliminatingBubbles.length){
+                console.log("gotTheBiggest:"+EliminatingBubbles[i].gotTheBiggest)
+                if(EliminatingBubbles[i].gotTheBiggest==false){//先膨胀
+                    EliminatingBubbles[i].r=EliminatingBubbles[i].r+0.5;
+                    if(EliminatingBubbles[i].r>BubbleR+5){
+                        EliminatingBubbles[i].gotTheBiggest=true;
+                    }
+                }
+                else{//再缩小
+                    EliminatingBubbles[i].r=EliminatingBubbles[i].r-1;
+                }
+                drawBubble(EliminatingBubbles[i]);
+                console.log(i+" size "+EliminatingBubbles[i].r);
+                if(EliminatingBubbles[i].r<5){
+                    EliminatingBubbles.splice(i,1);
+                    i--;
+                }
+                i++;
+            }
+        }
+
+
+
+
+
+
+
+
+
+
+
+        //画一个三角形
+//        context.beginPath();
+//        context.fillStyle="#ee8d19";
+////        caster.updateTrianglePosition( );
+//        context.moveTo(caster.position.x-2*caster.width,caster.position.y-2*caster.size);
+//        context.lineTo(caster.position.x+2*caster.width,caster.position.y-2*caster.size);
+//        context.lineTo(caster.position.x,caster.position.y-caster.size-4*caster.width);
+//        context.fill();
+//        context.closePath();
+
+
+
+
+
+//        alert(caster.angle)
+
+
+</script>
+</body>
+</html>
